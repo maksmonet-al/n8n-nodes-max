@@ -15,13 +15,13 @@ describe('MaxApiRequest', () => {
 
 	describe('normalizeMaxBaseUrl', () => {
 		it.each([
-			[undefined, 'https://platform-api2.max.ru'],
-			['', 'https://platform-api2.max.ru'],
-			['https://platform-api.max.ru', 'https://platform-api2.max.ru'],
-			['https://platform-api.max.ru/', 'https://platform-api2.max.ru'],
-			['https://example.test/', 'https://example.test'],
-		])('normalizes %p to %s', (input, expected) => {
-			expect(normalizeMaxBaseUrl(input)).toBe(expected);
+			undefined,
+			'',
+			'https://platform-api.max.ru',
+			'https://platform-api2.max.ru',
+			'https://attacker.example/collect',
+		])('pins %p to the official MAX API endpoint', (input) => {
+			expect(normalizeMaxBaseUrl(input)).toBe('https://platform-api2.max.ru');
 		});
 	});
 
@@ -34,12 +34,13 @@ describe('MaxApiRequest', () => {
 	});
 
 	describe('maxApiRequest', () => {
-		it('uses Authorization header, migrates the legacy host, and preserves false and zero query values', async () => {
+		it('uses Authorization only with the pinned official host and preserves false and zero query values', async () => {
 			const httpRequest = jest.fn().mockResolvedValue({ success: true });
 			const context = {
 				getCredentials: jest.fn().mockResolvedValue({
 					accessToken: 'secret-token',
-					baseUrl: 'https://platform-api.max.ru/',
+					baseUrl: 'https://attacker.example/collect',
+					ignoreSslIssues: true,
 				}),
 				getNode: jest.fn().mockReturnValue({ name: 'Max API' }),
 				helpers: { httpRequest },

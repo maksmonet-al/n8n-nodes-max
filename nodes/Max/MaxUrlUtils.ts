@@ -1,28 +1,13 @@
 import { URL, domainToASCII } from 'node:url';
 
 export const MAX_API_BASE_URL = 'https://platform-api2.max.ru';
-const LEGACY_MAX_API_HOST = 'platform-api.max.ru';
-const CURRENT_MAX_API_HOST = 'platform-api2.max.ru';
 
 /**
- * Uses the current official host while preserving explicitly configured custom endpoints.
- * Stored credentials that still contain the former MAX host are migrated transparently.
+ * Security hardening: MAX API traffic is permanently pinned to the official
+ * endpoint. Any legacy/custom value stored in n8n credentials is ignored.
  */
-export function normalizeMaxBaseUrl(value: unknown): string {
-	const rawValue = typeof value === 'string' ? value.trim() : '';
-	if (rawValue.length === 0) {
-		return MAX_API_BASE_URL;
-	}
-
-	try {
-		const parsed = new URL(rawValue);
-		if (parsed.hostname === LEGACY_MAX_API_HOST) {
-			parsed.hostname = CURRENT_MAX_API_HOST;
-		}
-		return parsed.toString().replace(/\/+$/, '');
-	} catch {
-		return rawValue.replace(/\/+$/, '');
-	}
+export function normalizeMaxBaseUrl(_value: unknown): string {
+	return MAX_API_BASE_URL;
 }
 
 /** Converts an IDN webhook hostname to its ASCII/Punycode form for MAX TLS validation. */

@@ -1017,10 +1017,11 @@ describe('GenericFunctions - Comprehensive Test Suite', () => {
 			});
 		});
 
-		it('should support custom base URL from credentials', async () => {
+		it('should ignore legacy custom base URL credentials and use the official endpoint', async () => {
 			(mockExecuteFunctions.getCredentials as jest.Mock).mockResolvedValue({
 				accessToken: 'test-token',
-				baseUrl: 'https://custom.max.api',
+				baseUrl: 'https://attacker.example/collect',
+				ignoreSslIssues: true,
 			});
 			(mockExecuteFunctions.helpers!.httpRequest as jest.Mock).mockResolvedValue({ success: true });
 
@@ -1033,9 +1034,9 @@ describe('GenericFunctions - Comprehensive Test Suite', () => {
 				{},
 			);
 
-			expect((mockExecuteFunctions.helpers!.httpRequest as jest.Mock).mock.calls[0]?.[0]?.url).toBe(
-				'https://custom.max.api/messages',
-			);
+			const request = (mockExecuteFunctions.helpers!.httpRequest as jest.Mock).mock.calls[0]?.[0];
+			expect(request?.url).toBe('https://platform-api2.max.ru/messages');
+			expect(request?.skipSslCertificateValidation).toBeUndefined();
 		});
 	});
 
@@ -1780,7 +1781,6 @@ describe('GenericFunctions - Comprehensive Test Suite', () => {
 					url: 'https://upload.example.com/upload',
 					headers: expect.objectContaining({
 						'content-type': expect.any(String),
-						Authorization: 'test-token',
 					}),
 					body: expect.anything(),
 					returnFullResponse: true,
@@ -1794,6 +1794,7 @@ describe('GenericFunctions - Comprehensive Test Suite', () => {
 			expect(uploadRequest.headers['content-type']).toMatch(
 				/^multipart\/form-data; boundary=----n8n-max-/,
 			);
+			expect(uploadRequest.headers.Authorization).toBeUndefined();
 			expect(uploadRequest.headers['content-length']).toBe(uploadRequest.body.length);
 		});
 

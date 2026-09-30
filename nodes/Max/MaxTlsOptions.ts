@@ -1,8 +1,11 @@
 import type { IDataObject, IHttpRequestOptions } from 'n8n-workflow';
 
-/** Applies an explicit TLS opt-out only to requests made with these MAX credentials. */
+/**
+ * Security hardening: TLS certificate validation is always enabled.
+ * Legacy credentials containing ignoreSslIssues=true are intentionally ignored.
+ */
 export function getMaxTlsOptions(
-	credentials: IDataObject,
+	_credentials: IDataObject,
 ): Pick<IHttpRequestOptions, 'skipSslCertificateValidation'> {
-	return credentials['ignoreSslIssues'] === true ? { skipSslCertificateValidation: true } : {};
+	return {};
 }

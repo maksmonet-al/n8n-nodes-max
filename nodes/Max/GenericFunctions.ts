@@ -309,7 +309,7 @@ export interface IMaxError {
  * Create a Max Bot API instance with credentials
  *
  * Creates and configures a Max Bot API instance using the provided credentials.
- * Supports custom base URL configuration for different Max API environments.
+ * The API endpoint is pinned to the official MAX Bot API.
  *
  * @param this - The execution context providing access to credentials
  * @returns Promise resolving to a configured Bot instance
@@ -1335,7 +1335,6 @@ export async function uploadFileToMax(
 			headers: {
 				'content-type': `multipart/form-data; boundary=${boundary}`,
 				'content-length': multipartBody.length,
-				...getAuthHeaders(accessToken),
 			},
 			returnFullResponse: true,
 		});

@@ -1,169 +1,46 @@
-/**
- * Jest unit tests for MaxApi credentials
- *
- * Run with: npm test
- * Run with coverage: npm run test:coverage
- * Run in watch mode: npm run test:watch
- */
-
 import { MaxApi } from '../MaxApi.credentials';
 
-function evaluateBaseUrlExpression(expression: unknown, baseUrl: string): string {
-	if (
-		typeof expression !== 'string' ||
-		!expression.startsWith('={{') ||
-		!expression.endsWith('}}')
-	) {
-		throw new Error('Expected an n8n expression string');
-	}
-
-	const javascript = expression.slice(3, -2);
-	return Function('$credentials', `return (${javascript});`)({ baseUrl }) as string;
-}
-
-describe('MaxApi Credentials', () => {
-	let maxApiCredentials: MaxApi;
+describe('MaxApi hardened credentials', () => {
+	let credentials: MaxApi;
 
 	beforeEach(() => {
-		maxApiCredentials = new MaxApi();
+		credentials = new MaxApi();
 	});
 
-	describe('Credential Properties', () => {
-		it('should have correct name', () => {
-			expect(maxApiCredentials.name).toBe('maxApi');
+	it('exposes only the access token as a configurable credential', () => {
+		expect(credentials.properties.map((property) => property.name)).toEqual(['accessToken']);
+
+		const accessToken = credentials.properties[0];
+		expect(accessToken).toMatchObject({
+			displayName: 'Access Token',
+			type: 'string',
+			default: '',
 		});
-
-		it('should have correct display name', () => {
-			expect(maxApiCredentials.displayName).toBe('Max API');
-		});
-
-		it('should have correct documentation URL', () => {
-			expect(maxApiCredentials.documentationUrl).toBe('https://dev.max.ru/docs-api');
-		});
-
-		it('should have access token property with password masking', () => {
-			const accessTokenProperty = maxApiCredentials.properties.find(
-				(prop) => prop.name === 'accessToken',
-			);
-
-			expect(accessTokenProperty).toBeDefined();
-			expect(accessTokenProperty?.displayName).toBe('Access Token');
-			expect(accessTokenProperty?.type).toBe('string');
-			expect(accessTokenProperty?.typeOptions?.password).toBe(true);
-			expect(accessTokenProperty?.default).toBe('');
-			expect(accessTokenProperty?.description).toContain('bot access token');
-		});
-
-		it('should have base URL property with default value', () => {
-			const baseUrlProperty = maxApiCredentials.properties.find((prop) => prop.name === 'baseUrl');
-
-			expect(baseUrlProperty).toBeDefined();
-			expect(baseUrlProperty?.displayName).toBe('Base URL');
-			expect(baseUrlProperty?.type).toBe('string');
-			expect(baseUrlProperty?.default).toBe('https://platform-api2.max.ru');
-			expect(baseUrlProperty?.description).toContain('API URL');
-		});
-
-		it('should keep SSL verification enabled by default and warn about the opt-out', () => {
-			const property = maxApiCredentials.properties.find((prop) => prop.name === 'ignoreSslIssues');
-
-			expect(property).toMatchObject({
-				displayName: 'Ignore SSL Issues (Insecure)',
-				type: 'boolean',
-				default: false,
-			});
-			expect(property?.description).toContain('interception');
-		});
+		expect(accessToken?.typeOptions?.password).toBe(true);
 	});
 
-	describe('Credential Test Configuration', () => {
-		it('should have correct test request configuration', () => {
-			expect(maxApiCredentials.test).toBeDefined();
-			expect(maxApiCredentials.test.request).toBeDefined();
-			expect(maxApiCredentials.test.request.baseURL).toBe(
-				"={{$credentials.baseUrl.replace(/^(https?:\\/\\/)platform-api\\.max\\.ru(?=[:/]|$)/i, '$1platform-api2.max.ru')}}",
-			);
-			expect(maxApiCredentials.test.request.url).toBe('/me');
-			expect(maxApiCredentials.test.request.headers).toEqual({
+	it('does not expose custom API URL or TLS bypass controls', () => {
+		const propertyNames = credentials.properties.map((property) => property.name);
+
+		expect(propertyNames).not.toContain('baseUrl');
+		expect(propertyNames).not.toContain('ignoreSslIssues');
+	});
+
+	it('pins credential validation to the official MAX API', () => {
+		expect(credentials.test.request).toMatchObject({
+			baseURL: 'https://platform-api2.max.ru',
+			url: '/me',
+			headers: {
 				Authorization: '={{$credentials.accessToken}}',
-			});
-		});
-
-		it.each([undefined, false, true, 'false', 'true', 0, 1])(
-			'should disable SSL verification in the credential test only for boolean true (%p)',
-			(ignoreSslIssues) => {
-				const expression = maxApiCredentials.test.request.skipSslCertificateValidation;
-				expect(expression).toBe('={{$credentials.ignoreSslIssues === true}}');
-				const evaluate = Function('$credentials', `return (${String(expression).slice(3, -2)});`);
-
-				expect(evaluate({ ignoreSslIssues })).toBe(ignoreSslIssues === true);
-				expect(evaluate({})).toBe(false);
 			},
-		);
-
-		it('should migrate only the exact legacy official host during credential testing', () => {
-			const expression = maxApiCredentials.test.request.baseURL;
-
-			expect(evaluateBaseUrlExpression(expression, 'https://platform-api.max.ru')).toBe(
-				'https://platform-api2.max.ru',
-			);
-			expect(evaluateBaseUrlExpression(expression, 'https://platform-api.max.ru:8443/custom')).toBe(
-				'https://platform-api2.max.ru:8443/custom',
-			);
-			expect(
-				evaluateBaseUrlExpression(expression, 'https://gateway.internal/platform-api.max.ru'),
-			).toBe('https://gateway.internal/platform-api.max.ru');
-			expect(
-				evaluateBaseUrlExpression(expression, 'https://platform-api.max.ru.example.test'),
-			).toBe('https://platform-api.max.ru.example.test');
 		});
-
-		it('should use Max API /me endpoint for credential validation', () => {
-			const testRequest = maxApiCredentials.test.request;
-
-			expect(testRequest.url).toBe('/me');
-			expect(testRequest.headers?.['Authorization']).toBe('={{$credentials.accessToken}}');
-		});
+		expect(credentials.test.request.skipSslCertificateValidation).toBeUndefined();
 	});
 
-	describe('Credential Validation', () => {
-		it('should validate credentials structure', () => {
-			// Test that all required properties are present
-			const requiredProperties = ['accessToken', 'baseUrl'];
-			const propertyNames = maxApiCredentials.properties.map((prop) => prop.name);
-
-			requiredProperties.forEach((prop) => {
-				expect(propertyNames).toContain(prop);
-			});
-		});
-
-		it('should have proper field descriptions', () => {
-			const accessTokenProperty = maxApiCredentials.properties.find(
-				(prop) => prop.name === 'accessToken',
-			);
-			const baseUrlProperty = maxApiCredentials.properties.find((prop) => prop.name === 'baseUrl');
-
-			expect(accessTokenProperty?.description).toContain('bot access token');
-			expect(accessTokenProperty?.description).toContain('@PrimeBot');
-			expect(baseUrlProperty?.description).toContain('API URL');
-		});
-
-		it('should have all required properties for n8n credential interface', () => {
-			// Verify the credential implements ICredentialType properly
-			expect(maxApiCredentials.name).toBeDefined();
-			expect(maxApiCredentials.displayName).toBeDefined();
-			expect(maxApiCredentials.properties).toBeDefined();
-			expect(maxApiCredentials.test).toBeDefined();
-			expect(Array.isArray(maxApiCredentials.properties)).toBe(true);
-			expect(maxApiCredentials.properties.length).toBeGreaterThan(0);
-		});
-
-		it('should use proper Max API authentication format', () => {
-			const testRequest = maxApiCredentials.test.request;
-
-			expect(testRequest.headers).toBeDefined();
-			expect(testRequest.headers?.['Authorization']).toBeDefined();
-			expect(testRequest.qs).toBeUndefined();
-		});
+	it('keeps the expected n8n credential metadata', () => {
+		expect(credentials.name).toBe('maxApi');
+		expect(credentials.displayName).toBe('Max API');
+		expect(credentials.documentationUrl).toBe('https://dev.max.ru/docs-api');
+		expect(credentials.icon).toBe('file:max.svg');
 	});
 });
